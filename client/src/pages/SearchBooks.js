@@ -8,13 +8,10 @@ import {
   Card,
   CardColumns,
 } from "react-bootstrap";
-
-import Auth from "../utils/auth";
-import { searchGoogleBooks } from "../utils/API";
-import { saveBookIds, getSavedBookIds } from "../utils/localStorage";
 import { useMutation } from "@apollo/client";
 import { SAVE_BOOK } from "../utils/mutation";
-import { GET_ME } from "../utils/queries";
+import Auth from "../utils/auth";
+import { saveBookIds, getSavedBookIds } from "../utils/localStorage";
 
 const SearchBooks = () => {
   // create state for holding returned google api data
@@ -24,9 +21,9 @@ const SearchBooks = () => {
 
   // create state to hold saved bookId values
   const [savedBookIds, setSavedBookIds] = useState(getSavedBookIds());
+  const [saveBook, { error }] = useMutation(SAVE_BOOK);
 
   // set up useEffect hook to save `savedBookIds` list to localStorage on component unmount
-  const [saveBook] = useMutation(SAVE_BOOK);
   // learn more here: https://reactjs.org/docs/hooks-effect.html#effects-with-cleanup
   useEffect(() => {
     return () => saveBookIds(savedBookIds);
@@ -41,7 +38,9 @@ const SearchBooks = () => {
     }
 
     try {
-      const response = await searchGoogleBooks(searchInput);
+      const response = await fetch(
+        `https://www.googleapis.com/books/v1/volumes?q=${searchInput}`
+      );
 
       if (!response.ok) {
         throw new Error("something went wrong!");
@@ -78,21 +77,12 @@ const SearchBooks = () => {
 
     try {
       await saveBook({
-        variables: { book: bookToSave },
-        update: (cache) => {
-          const { me } = cache.readQuery({ query: GET_ME });
-          // console.log(me)
-          // console.log(me.savedBooks)
-          cache.writeQuery({
-            query: GET_ME,
-            data: { me: { ...me, savedBooks: [...me.savedBooks, bookToSave] } },
-          });
-        },
+        variables: { bookData: { ...bookToSave } },
       });
-      // if book successfully saves to user's account, save book id to state
+      console.log(savedBookIds);
       setSavedBookIds([...savedBookIds, bookToSave.bookId]);
-    } catch (err) {
-      console.error(err);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -147,17 +137,18 @@ const SearchBooks = () => {
                   {Auth.loggedIn() && (
                     <Button
                       disabled={savedBookIds?.some(
-                        (savedBookId) => savedBookId === book.bookId
+                        (savedId) => savedId === book.bookId
                       )}
                       className="btn-block btn-info"
                       onClick={() => handleSaveBook(book.bookId)}
                     >
-                      {savedBookIds?.some(
-                        (savedBookId) => savedBookId === book.bookId
-                      )
-                        ? "This book has already been saved!"
-                        : "Save this Book!"}
+                      {savedBookIds?.some((savedId) => savedId === book.bookId)
+                        ? "Book Already Saved!"
+                        : "Save This Book!"}
                     </Button>
+                  )}
+                  {error && (
+                    <span className="ml-2">Something went wrong...</span>
                   )}
                 </Card.Body>
               </Card>
